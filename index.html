@@ -139,13 +139,38 @@
 
         <!-- SEÇÃO 2: PAINEL ADMINISTRATIVO (LOJISTA) -->
         <section id="view-admin" class="hidden space-y-8">
+            <!-- Login do proprietário: o painel só aparece após autenticação e validação do ID -->
+            <div id="admin-login" class="max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+                <div class="text-center mb-6">
+                    <div class="w-14 h-14 mx-auto rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl mb-3"><i class="fa-solid fa-lock"></i></div>
+                    <h2 class="text-xl font-bold text-slate-900">Acesso do lojista</h2>
+                    <p class="text-sm text-slate-500 mt-1">Entre com o e-mail e a senha da conta proprietária.</p>
+                </div>
+                <form id="admin-login-form" onsubmit="loginAdmin(event)" class="space-y-4">
+                    <div>
+                        <label for="admin-email" class="block text-xs font-semibold text-slate-700 uppercase mb-1">E-mail</label>
+                        <input id="admin-email" type="email" autocomplete="username" required class="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="seuemail@exemplo.com">
+                    </div>
+                    <div>
+                        <label for="admin-password" class="block text-xs font-semibold text-slate-700 uppercase mb-1">Senha</label>
+                        <input id="admin-password" type="password" autocomplete="current-password" required class="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Sua senha">
+                    </div>
+                    <button id="admin-login-submit" type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm">Entrar no painel</button>
+                    <p id="admin-login-message" role="status" class="text-sm text-center text-rose-600"></p>
+                </form>
+                <p class="text-xs text-slate-400 text-center mt-4">A loja e o carrinho continuam públicos. O login é apenas para administrar os produtos.</p>
+            </div>
+            <div id="admin-content" class="hidden space-y-8">
             <!-- Cabeçalho do Painel Admin -->
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-900">Painel do Lojista</h2>
                     <p class="text-sm text-slate-500 mt-0.5">Gerencie os produtos do seu catálogo sem complicação.</p>
                 </div>
-                <div class="flex gap-3">
+                <div class="flex gap-3 flex-wrap">
+                    <button onclick="logoutAdmin()" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-medium text-sm transition">
+                        <i class="fa-solid fa-right-from-bracket mr-1"></i> Sair
+                    </button>
                     <button onclick="toggleModalProduct(true)" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-sm transition shadow-sm flex items-center gap-2">
                         <i class="fa-solid fa-plus"></i> Novo Produto
                     </button>
@@ -209,6 +234,7 @@
                     </li>
                 </ol>
             </div>
+            </div><!-- fim de admin-content -->
         </section>
 
     </main>
@@ -374,6 +400,12 @@
         let products = [];
         let cart = [];
         let supabaseClient = null;
+        let currentUser = null;
+        // Configuração pública do projeto Supabase (pode ficar no frontend).
+        const SUPABASE_URL = 'https://oohtppdkrfcvphbotrau.supabase.co';
+        const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_CXV2n08-rUuvHQeWLYUXRQ_XUL7hxpn';
+        // UUID do único usuário autorizado a administrar este catálogo.
+        const ADMIN_USER_ID = '880acbeb-a92f-4e01-9932-6f840938ee28';
 
         // Prévia da foto escolhida pelo lojista.
         document.addEventListener('DOMContentLoaded', () => {
@@ -510,16 +542,20 @@
         /* ==========================================================================
            2. INICIALIZAÇÃO DA APLICAÇÃO
            ========================================================================== */
-        window.onload = function () {
+        window.onload = async function () {
             initSupabase();
-            loadProducts();
             loadCartFromStorage();
+            if (supabaseClient) {
+                await restoreAdminSession();
+            }
+            await loadProducts();
         };
 
         // Conecta ao Supabase ou ativa o modo de Fallback Local
         function initSupabase() {
-            const url = localStorage.getItem('cfg_supabase_url');
-            const key = localStorage.getItem('cfg_supabase_key');
+            // Usa as credenciais definidas no próprio arquivo: funciona em qualquer navegador.
+            const url = SUPABASE_URL;
+            const key = SUPABASE_PUBLISHABLE_KEY;
 
             if (url && key && window.supabase) {
                 try {
@@ -534,6 +570,95 @@
             } else {
                 supabaseClient = null;
             }
+        }
+
+        // Autenticação do painel: somente o UUID autorizado pelas políticas RLS pode administrar.
+        function isAdmin() {
+            return !!(currentUser && currentUser.id === ADMIN_USER_ID);
+        }
+
+        function updateAdminAccess() {
+            const login = document.getElementById('admin-login');
+            const content = document.getElementById('admin-content');
+            if (isAdmin()) {
+                login.classList.add('hidden');
+                content.classList.remove('hidden');
+                document.getElementById('admin-login-message').textContent = '';
+            } else {
+                content.classList.add('hidden');
+                login.classList.remove('hidden');
+            }
+        }
+
+        async function restoreAdminSession() {
+            if (!supabaseClient) return;
+            try {
+                const { data, error } = await supabaseClient.auth.getSession();
+                if (error) throw error;
+                currentUser = data.session ? data.session.user : null;
+                if (currentUser && currentUser.id !== ADMIN_USER_ID) {
+                    await supabaseClient.auth.signOut();
+                    currentUser = null;
+                    document.getElementById('admin-login-message').textContent = 'Esta conta não tem permissão para acessar o painel.';
+                }
+            } catch (error) {
+                console.error('Erro ao verificar sessão:', error);
+                currentUser = null;
+            }
+            updateAdminAccess();
+            supabaseClient.auth.onAuthStateChange((_event, session) => {
+                currentUser = session ? session.user : null;
+                if (currentUser && currentUser.id !== ADMIN_USER_ID) {
+                    currentUser = null;
+                    supabaseClient.auth.signOut();
+                }
+                updateAdminAccess();
+            });
+        }
+
+        async function loginAdmin(event) {
+            event.preventDefault();
+            const message = document.getElementById('admin-login-message');
+            const button = document.getElementById('admin-login-submit');
+            message.textContent = '';
+            if (!supabaseClient) {
+                message.textContent = 'Configure primeiro a URL e a chave pública do Supabase.';
+                return;
+            }
+            button.disabled = true;
+            button.textContent = 'Entrando...';
+            try {
+                const email = document.getElementById('admin-email').value.trim();
+                const password = document.getElementById('admin-password').value;
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                if (!data.user || data.user.id !== ADMIN_USER_ID) {
+                    await supabaseClient.auth.signOut();
+                    currentUser = null;
+                    throw new Error('Este e-mail não é o proprietário autorizado do catálogo.');
+                }
+                currentUser = data.user;
+                document.getElementById('admin-password').value = '';
+                updateAdminAccess();
+                await loadProducts();
+                showToast('Login realizado com sucesso!');
+            } catch (error) {
+                message.textContent = error.message || 'Não foi possível entrar. Confira e-mail e senha.';
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Entrar no painel';
+            }
+        }
+
+        async function logoutAdmin() {
+            if (supabaseClient) {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) { showToast('Erro ao sair: ' + error.message, 'error'); return; }
+            }
+            currentUser = null;
+            updateAdminAccess();
+            switchTab('store');
+            showToast('Você saiu do painel.');
         }
 
         /* ==========================================================================
@@ -568,6 +693,7 @@
 
         async function saveProduct(event) {
             event.preventDefault();
+            if (!isAdmin() || !supabaseClient) { showToast('Conecte o Supabase e entre com a conta proprietária para cadastrar ou editar.', 'error'); return; }
             const id = document.getElementById('product-id').value;
             const title = document.getElementById('prod-title').value.trim();
             const price = parseFloat(document.getElementById('prod-price').value);
@@ -625,6 +751,7 @@
         }
 
         async function deleteProduct(id) {
+            if (!isAdmin() || !supabaseClient) { showToast('Conecte o Supabase e entre com a conta proprietária para excluir produtos.', 'error'); return; }
             if (!confirm('Deseja realmente excluir este produto?')) return;
 
             if (supabaseClient) {
@@ -897,6 +1024,10 @@
                 viewAdmin.classList.remove('hidden');
                 btnAdmin.className = "px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 bg-slate-900 text-white";
                 btnStore.className = "px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-2";
+                updateAdminAccess();
+                if (!supabaseClient) {
+                    document.getElementById('admin-login-message').textContent = 'Configure a URL e a chave pública do Supabase antes de entrar.';
+                }
             }
         }
 
@@ -914,6 +1045,7 @@
         }
 
         function toggleModalProduct(open) {
+            if (open && (!isAdmin() || !supabaseClient)) { showToast('Conecte o Supabase e entre com a conta proprietária para cadastrar produtos.', 'error'); return; }
             const modal = document.getElementById('modal-product');
             if (open) {
                 document.getElementById('form-product').reset();
@@ -930,6 +1062,7 @@
         }
 
         function editProduct(id) {
+            if (!isAdmin() || !supabaseClient) { showToast('Conecte o Supabase e entre com a conta proprietária para editar.', 'error'); return; }
             const product = products.find(p => p.id == id);
             if (!product) return;
 
@@ -951,15 +1084,15 @@
         function toggleModalConfig(open) {
             const modal = document.getElementById('modal-config');
             if (open) {
-                document.getElementById('cfg-supabase-url').value = localStorage.getItem('cfg_supabase_url') || '';
-                document.getElementById('cfg-supabase-key').value = localStorage.getItem('cfg_supabase_key') || '';
+                document.getElementById('cfg-supabase-url').value = SUPABASE_URL;
+                document.getElementById('cfg-supabase-key').value = SUPABASE_PUBLISHABLE_KEY;
                 modal.classList.remove('hidden');
             } else {
                 modal.classList.add('hidden');
             }
         }
 
-        function saveSupabaseConfig(e) {
+        async function saveSupabaseConfig(e) {
             e.preventDefault();
             const url = document.getElementById('cfg-supabase-url').value.trim();
             const key = document.getElementById('cfg-supabase-key').value.trim();
@@ -976,6 +1109,8 @@
 
             toggleModalConfig(false);
             initSupabase();
+            currentUser = null;
+            if (supabaseClient) await restoreAdminSession();
             loadProducts();
         }
 
