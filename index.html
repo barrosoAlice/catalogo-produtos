@@ -1,1 +1,876 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo Online & Pedidos via WhatsApp</title>
+    <!-- Tailwind CSS CDN para estilização rápida e responsiva -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Supabase JS Client via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        whatsapp: '#25D366',
+                        whatsappDark: '#128C7E',
+                        brand: {
+                            50: '#f0f9ff',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVEGAÇÃO -->
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logotipo / Nome da Loja -->
+                <div class="flex items-center gap-3 cursor-pointer" onclick="switchTab('store')">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md">
+                        <i class="fa-solid font-bold text-xl fa-store"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-slate-900 text-lg leading-tight">Catálogo Digital</h1>
+                        <p class="text-xs text-slate-500">Projeto de Extensão Universitária</p>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação Topo -->
+                <div class="flex items-center gap-3">
+                    <!-- Alternar para Loja -->
+                    <button id="btn-tab-store" onclick="switchTab('store')" class="px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <i class="fa-solid fa-bag-shopping"></i>
+                        <span class="hidden sm:inline">Loja</span>
+                    </button>
+
+                    <!-- Alternar para Painel Admin -->
+                    <button id="btn-tab-admin" onclick="switchTab('admin')" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-2">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span class="hidden sm:inline">Painel Lojista</span>
+                    </button>
+
+                    <!-- Carrinho (Abrir Drawer) -->
+                    <button onclick="toggleCartDrawer(true)" class="relative p-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition shadow-sm">
+                        <i class="fa-solid fa-cart-shopping text-base"></i>
+                        <span id="cart-badge" class="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white scale-0 transition-transform">0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTEÚDO PRINCIPAL CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- ALERTA INFORMATIVO ACADÊMICO E SUPABASE -->
+        <div id="status-banner" class="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-amber-900 shadow-sm">
+            <div class="flex items-start gap-3">
+                <i class="fa-solid fa-circle-info text-amber-600 text-xl mt-0.5"></i>
+                <div class="text-sm">
+                    <strong class="font-semibold block mb-0.5" id="banner-title">Modo Demonstração Ativo (Armazenamento Local)</strong>
+                    <span id="banner-desc">O aplicativo está rodando em modo local. Para conectar com o Supabase gratuito em nuvem, insira suas credenciais nas configurações do painel.</span>
+                </div>
+            </div>
+            <button onclick="switchTab('admin'); openSupabaseHelp()" class="shrink-0 text-xs font-semibold bg-amber-600 text-white px-3 py-2 rounded-lg hover:bg-amber-700 transition">
+                Configurar Supabase
+            </button>
+        </div>
+
+        <!-- SEÇÃO 1: VISÃO DA LOJA (CLIENTE FINAL) -->
+        <section id="view-store" class="space-y-6">
+            <!-- Barra de Busca e Filtros -->
+            <div class="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="search-input" oninput="renderProducts()" placeholder="Buscar produtos..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition shadow-sm">
+                </div>
+                <div id="product-count" class="text-xs font-medium text-slate-500 w-full sm:w-auto text-right">
+                    Carregando catálogo...
+                </div>
+            </div>
+
+            <!-- Grade de Produtos -->
+            <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <!-- Cards de produtos injetados via JavaScript -->
+            </div>
+
+            <!-- Empty State (Sem produtos encontrados) -->
+            <div id="empty-state" class="hidden text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
+                <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                    <i class="fa-solid fa-box-open text-2xl"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">Nenhum produto encontrado</h3>
+                <p class="text-sm text-slate-500 mt-1">Tente ajustar a busca ou cadastre novos itens no Painel Administrativo.</p>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 2: PAINEL ADMINISTRATIVO (LOJISTA) -->
+        <section id="view-admin" class="hidden space-y-8">
+            <!-- Cabeçalho do Painel Admin -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-900">Painel do Lojista</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Gerencie os produtos do seu catálogo sem complicação.</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="toggleModalProduct(true)" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-sm transition shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Novo Produto
+                    </button>
+                    <button onclick="toggleModalConfig(true)" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-medium text-sm transition shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-gear text-slate-500"></i> Configurar Banco
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabela de Produtos Cadastrados -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <h3 class="font-semibold text-slate-800">Produtos No Catálogo</h3>
+                    <span id="admin-product-count" class="text-xs bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full font-medium">0 itens</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-50 text-slate-500 border-b border-slate-100 text-xs uppercase tracking-wider">
+                            <tr>
+                                <th class="p-4">Produto</th>
+                                <th class="p-4">Preço</th>
+                                <th class="p-4">WhatsApp Vendedor</th>
+                                <th class="p-4 text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-table-body" class="divide-y divide-slate-100">
+                            <!-- Linhas da tabela via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tutorial de Conexão Supabase -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 sm:p-8 shadow-lg">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">3</span>
+                    <h3 class="text-lg font-bold">Como Conectar o Supabase Gratuito em 3 Passos</h3>
+                </div>
+                <ol class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-slate-300">
+                    <li class="bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+                        <span class="text-emerald-400 font-bold block mb-1">Passo 1: Criar Conta</span>
+                        Acesse <a href="https://supabase.com" target="_blank" class="text-white underline">supabase.com</a>, crie uma conta grátis e crie um projeto chamado <code>catalogo-produtos</code>.
+                    </li>
+                    <li class="bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+                        <span class="text-emerald-400 font-bold block mb-1">Passo 2: Criar a Tabela</span>
+                        No SQL Editor do Supabase, execute o código abaixo para gerar a estrutura de produtos:
+                        <div class="mt-2 bg-slate-950 p-2 rounded text-[11px] font-mono text-emerald-300 overflow-x-auto">
+                            create table produtos (<br>
+                            &nbsp;&nbsp;id bigint generated by default as identity primary key,<br>
+                            &nbsp;&nbsp;title text,<br>
+                            &nbsp;&nbsp;price numeric,<br>
+                            &nbsp;&nbsp;description text,<br>
+                            &nbsp;&nbsp;image_url text,<br>
+                            &nbsp;&nbsp;whatsapp text<br>
+                            );
+                        </div>
+                    </li>
+                    <li class="bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+                        <span class="text-emerald-400 font-bold block mb-1">Passo 3: Salvar Chaves</span>
+                        Vá em <i>Project Settings > API</i> no Supabase, copie a <b>URL</b> e a <b>anon key</b> e cole no botão <b>"Configurar Banco"</b> acima!
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- DRAWER / CARRINHO DE COMPRAS LATERAL -->
+    <div id="cart-drawer-backdrop" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 opacity-0 pointer-events-none transition-opacity duration-300" onclick="toggleCartDrawer(false)"></div>
+    
+    <div id="cart-drawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-white z-50 shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+        <!-- Header do Carrinho -->
+        <div class="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-bag-shopping text-emerald-600 text-xl"></i>
+                <h3 class="font-bold text-slate-900 text-lg">Seu Carrinho</h3>
+            </div>
+            <button onclick="toggleCartDrawer(false)" class="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Lista de Itens do Carrinho -->
+        <div id="cart-items" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+            <!-- Itens do Carrinho injetados via JS -->
+        </div>
+
+        <!-- Footer do Carrinho (Resumo e Envio) -->
+        <div class="p-4 sm:p-6 border-t border-slate-100 bg-slate-50 space-y-4">
+            <div class="flex justify-between items-center text-slate-600 text-sm">
+                <span>Subtotal</span>
+                <span id="cart-total" class="font-bold text-slate-900 text-lg">R$ 0,00</span>
+            </div>
+
+            <!-- Dados do Cliente -->
+            <div class="space-y-3 pt-2">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Seu Nome *</label>
+                    <input type="text" id="client-name" placeholder="Ex: Maria Silva" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Endereço de Entrega *</label>
+                    <textarea id="client-address" rows="2" placeholder="Rua, Número, Bairro, Cidade..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Forma de Pagamento</label>
+                    <select id="client-payment" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="Pix">Pix</option>
+                        <option value="Cartão de Crédito/Débito">Cartão de Crédito/Débito na Entrega</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Botão Enviar Pedido via WhatsApp -->
+            <button onclick="checkoutWhatsApp()" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 text-sm">
+                <i class="fa-brands fa-whatsapp text-lg"></i>
+                Enviar Pedido via WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: CADASTRAR/EDITAR PRODUTO (LOJISTA) -->
+    <div id="modal-product" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden transform transition-all">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 id="modal-product-title" class="font-bold text-slate-900 text-lg">Cadastrar Novo Produto</h3>
+                <button onclick="toggleModalProduct(false)" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <form id="form-product" onsubmit="saveProduct(event)" class="p-6 space-y-4">
+                <input type="hidden" id="product-id">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Nome do Produto *</label>
+                    <input type="text" id="prod-title" required placeholder="Ex: Camiseta Algodão Premium" class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Preço (R$) *</label>
+                        <input type="number" step="0.01" id="prod-price" required placeholder="89.90" class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">WhatsApp do Vendedor *</label>
+                        <input type="text" id="prod-whatsapp" required placeholder="5562999999999" class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <span class="text-[10px] text-slate-400">DDD + Número (ex: 5562988887777)</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">URL da Imagem *</label>
+                    <input type="url" id="prod-image" required placeholder="https://images.unsplash.com/..." class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Descrição do Produto</label>
+                    <textarea id="prod-desc" rows="3" placeholder="Detalhes do produto, tamanho, material..." class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none"></textarea>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="toggleModalProduct(false)" class="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-medium text-sm transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm shadow-md transition">Salvar Produto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIGURAÇÃO SUPABASE -->
+    <div id="modal-config" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-slate-900 text-lg">Configurar Credenciais Supabase</h3>
+                <button onclick="toggleModalConfig(false)" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="saveSupabaseConfig(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase Project URL</label>
+                    <input type="url" id="cfg-supabase-url" placeholder="https://xyz.supabase.co" class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase Anon Key</label>
+                    <input type="password" id="cfg-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <p class="text-xs text-slate-500">Deixe os campos em branco se desejar continuar usando o armazenamento Local (Mock/LocalStorage) para testes.</p>
+
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="toggleModalConfig(false)" class="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-medium text-sm transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-sm shadow-md transition">Salvar Configuração</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CAIXA DE NOTIFICAÇÃO FLOATING (TOAST) -->
+    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 opacity-0 pointer-events-none transition-all duration-300 z-50">
+        <i id="toast-icon" class="fa-solid fa-check text-emerald-400"></i>
+        <span id="toast-message">Mensagem de teste</span>
+    </div>
+
+    <!-- RODAPÉ DA PÁGINA -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center text-slate-500 text-xs space-y-2">
+            <p>Projeto de Extensão Universitária &copy; 2026 - Catálogo Online Gratuito via Supabase + WhatsApp</p>
+            <p class="text-slate-400">Desenvolvido com HTML5, Tailwind CSS, JavaScript Vanilla e Supabase API.</p>
+        </div>
+    </footer>
+
+    <!-- LÓGICA EM JAVASCRIPT -->
+    <script>
+        /* ==========================================================================
+           1. ESTADO GLOBAL DA APLICAÇÃO
+           ========================================================================== */
+        let products = [];
+        let cart = [];
+        let supabaseClient = null;
+
+        // Produtos Iniciais Mock para Teste Acadêmico
+        const initialMockProducts = [
+            {
+                id: 1,
+                title: 'Fone de Ouvido Bluetooth Pro',
+                price: 189.90,
+                description: 'Cancelamento ativo de ruído, bateria de até 24 horas e excelente qualidade sonora.',
+                image_url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80',
+                whatsapp: '5562999999999'
+            },
+            {
+                id: 2,
+                title: 'Smartwatch Esportivo Waterproof',
+                price: 249.00,
+                description: 'Monitoramento cardíaco, GPS integrado e resistente à água até 50 metros.',
+                image_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80',
+                whatsapp: '5562999999999'
+            },
+            {
+                id: 3,
+                title: 'Mochila Urbana Impermeável',
+                price: 139.90,
+                description: 'Compartimento acolchoado para notebook de até 15.6 polegadas e entrada USB externa.',
+                image_url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80',
+                whatsapp: '5562999999999'
+            }
+        ];
+
+        /* ==========================================================================
+           2. INICIALIZAÇÃO DA APLICAÇÃO
+           ========================================================================== */
+        window.onload = function () {
+            initSupabase();
+            loadProducts();
+            loadCartFromStorage();
+        };
+
+        // Conecta ao Supabase ou ativa o modo de Fallback Local
+        function initSupabase() {
+            const url = localStorage.getItem('cfg_supabase_url');
+            const key = localStorage.getItem('cfg_supabase_key');
+
+            if (url && key && window.supabase) {
+                try {
+                    supabaseClient = window.supabase.createClient(url, key);
+                    document.getElementById('status-banner').className = "mb-8 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-emerald-900 shadow-sm";
+                    document.getElementById('banner-title').innerText = "Conectado ao Supabase Cloud";
+                    document.getElementById('banner-desc').innerText = "Seus produtos estão sendo armazenados no banco de dados Supabase em tempo real.";
+                } catch (e) {
+                    console.error("Erro ao inicializar Supabase:", e);
+                    supabaseClient = null;
+                }
+            } else {
+                supabaseClient = null;
+            }
+        }
+
+        /* ==========================================================================
+           3. GERENCIAMENTO DE PRODUTOS (CRUD)
+           ========================================================================== */
+        async function loadProducts() {
+            if (supabaseClient) {
+                try {
+                    const { data, error } = await supabaseClient.from('produtos').select('*').order('id', { ascending: false });
+                    if (error) throw error;
+                    products = data || [];
+                } catch (err) {
+                    showToast('Erro ao carregar do Supabase. Usando modo local.', 'error');
+                    fetchLocalProducts();
+                }
+            } else {
+                fetchLocalProducts();
+            }
+            renderProducts();
+            renderAdminTable();
+        }
+
+        function fetchLocalProducts() {
+            const stored = localStorage.getItem('app_local_products');
+            if (stored) {
+                products = JSON.parse(stored);
+            } else {
+                products = initialMockProducts;
+                localStorage.setItem('app_local_products', JSON.stringify(products));
+            }
+        }
+
+        async function saveProduct(event) {
+            event.preventDefault();
+            const id = document.getElementById('product-id').value;
+            const title = document.getElementById('prod-title').value.trim();
+            const price = parseFloat(document.getElementById('prod-price').value);
+            const whatsapp = document.getElementById('prod-whatsapp').value.trim().replace(/\D/g, '');
+            const image_url = document.getElementById('prod-image').value.trim();
+            const description = document.getElementById('prod-desc').value.trim();
+
+            const productData = { title, price, whatsapp, image_url, description };
+
+            if (supabaseClient) {
+                try {
+                    if (id) {
+                        const { error } = await supabaseClient.from('produtos').update(productData).eq('id', id);
+                        if (error) throw error;
+                    } else {
+                        const { error } = await supabaseClient.from('produtos').insert([productData]);
+                        if (error) throw error;
+                    }
+                    showToast('Produto salvo no Supabase com sucesso!');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Erro ao salvar no Supabase: ' + err.message, 'error');
+                    return;
+                }
+            } else {
+                // Modo Fallback LocalStorage
+                if (id) {
+                    const index = products.findIndex(p => p.id == id);
+                    if (index !== -1) products[index] = { ...products[index], ...productData };
+                } else {
+                    const newProd = { id: Date.now(), ...productData };
+                    products.unshift(newProd);
+                }
+                localStorage.setItem('app_local_products', JSON.stringify(products));
+                showToast('Produto salvo em modo local!');
+            }
+
+            toggleModalProduct(false);
+            loadProducts();
+        }
+
+        async function deleteProduct(id) {
+            if (!confirm('Deseja realmente excluir este produto?')) return;
+
+            if (supabaseClient) {
+                try {
+                    const { error } = await supabaseClient.from('produtos').delete().eq('id', id);
+                    if (error) throw error;
+                    showToast('Produto excluído do Supabase!');
+                } catch (err) {
+                    showToast('Erro ao excluir: ' + err.message, 'error');
+                    return;
+                }
+            } else {
+                products = products.filter(p => p.id != id);
+                localStorage.setItem('app_local_products', JSON.stringify(products));
+                showToast('Produto removido localmente!');
+            }
+
+            loadProducts();
+        }
+
+        /* ==========================================================================
+           4. RENDERIZAÇÃO DA INTERFACE DA LOJA E ADMIN
+           ========================================================================== */
+        function renderProducts() {
+            const grid = document.getElementById('products-grid');
+            const emptyState = document.getElementById('empty-state');
+            const countLabel = document.getElementById('product-count');
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+
+            const filtered = products.filter(p => 
+                p.title.toLowerCase().includes(searchTerm) || 
+                (p.description && p.description.toLowerCase().includes(searchTerm))
+            );
+
+            countLabel.innerText = `${filtered.length} produto(s) encontrado(s)`;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.innerHTML = filtered.map(p => `
+                <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group">
+                    <!-- Imagem -->
+                    <div class="relative h-48 w-full bg-slate-100 overflow-hidden">
+                        <img src="${p.image_url}" alt="${p.title}" 
+                             onerror="this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Sem+Imagem'"
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                    </div>
+
+                    <!-- Informações do Produto -->
+                    <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-base leading-snug line-clamp-1 group-hover:text-emerald-600 transition-colors">${p.title}</h3>
+                            <p class="text-slate-500 text-xs mt-1.5 line-clamp-2 leading-relaxed">${p.description || 'Sem descrição cadastrada.'}</p>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-slate-400 font-semibold uppercase block">Preço</span>
+                                <span class="text-lg font-bold text-slate-900">R$ ${parseFloat(p.price).toFixed(2).replace('.', ',')}</span>
+                            </div>
+
+                            <button onclick="addToCart(${p.id})" class="px-3.5 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white rounded-xl font-semibold text-xs transition-colors duration-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-cart-plus"></i> Adicionar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderAdminTable() {
+            const tbody = document.getElementById('admin-table-body');
+            const countBadge = document.getElementById('admin-product-count');
+            countBadge.innerText = `${products.length} itens`;
+
+            if (products.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="p-8 text-center text-slate-400">
+                            Nenhum produto cadastrado no sistema.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = products.map(p => `
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="p-4 flex items-center gap-3">
+                        <img src="${p.image_url}" onerror="this.src='https://placehold.co/100x100/e2e8f0/64748b?text=N/A'" class="w-10 h-10 rounded-lg object-cover border border-slate-200">
+                        <div>
+                            <div class="font-semibold text-slate-900">${p.title}</div>
+                            <div class="text-xs text-slate-400 truncate max-w-xs">${p.description || '-'}</div>
+                        </div>
+                    </td>
+                    <td class="p-4 font-semibold text-slate-800">
+                        R$ ${parseFloat(p.price).toFixed(2).replace('.', ',')}
+                    </td>
+                    <td class="p-4 text-xs font-mono text-slate-600">
+                        <i class="fa-brands fa-whatsapp text-emerald-500 mr-1"></i>${p.whatsapp}
+                    </td>
+                    <td class="p-4 text-right space-x-2">
+                        <button onclick="editProduct(${p.id})" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition" title="Editar">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button onclick="deleteProduct(${p.id})" class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition" title="Excluir">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        /* ==========================================================================
+           5. CARRINHO DE COMPRAS E INTEGRACAO WHATSAPP
+           ========================================================================== */
+        function addToCart(productId) {
+            const product = products.find(p => p.id == productId);
+            if (!product) return;
+
+            const existing = cart.find(item => item.id == productId);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                cart.push({ ...product, quantity: 1 });
+            }
+
+            saveCart();
+            updateCartUI();
+            showToast(`"${product.title}" adicionado ao carrinho!`);
+        }
+
+        function updateQuantity(productId, change) {
+            const item = cart.find(i => i.id == productId);
+            if (!item) return;
+
+            item.quantity += change;
+            if (item.quantity <= 0) {
+                cart = cart.filter(i => i.id != productId);
+            }
+
+            saveCart();
+            updateCartUI();
+        }
+
+        function saveCart() {
+            localStorage.setItem('app_cart', JSON.stringify(cart));
+        }
+
+        function loadCartFromStorage() {
+            const stored = localStorage.getItem('app_cart');
+            if (stored) {
+                cart = JSON.parse(stored);
+                updateCartUI();
+            }
+        }
+
+        function updateCartUI() {
+            const container = document.getElementById('cart-items');
+            const badge = document.getElementById('cart-badge');
+            const totalElement = document.getElementById('cart-total');
+
+            const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+            badge.innerText = totalItems;
+            badge.style.transform = totalItems > 0 ? 'scale(1)' : 'scale(0)';
+
+            const grandTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+            totalElement.innerText = `R$ ${grandTotal.toFixed(2).replace('.', ',')}`;
+
+            if (cart.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-400">
+                        <i class="fa-solid fa-cart-flatbed text-4xl mb-3"></i>
+                        <p class="text-sm font-medium">Seu carrinho está vazio.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = cart.map(item => `
+                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <img src="${item.image_url}" class="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0">
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-semibold text-slate-800 text-sm truncate">${item.title}</h4>
+                        <div class="text-xs text-slate-500 font-medium mt-0.5">R$ ${parseFloat(item.price).toFixed(2).replace('.', ',')}</div>
+                    </div>
+                    <div class="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden">
+                        <button onclick="updateQuantity(${item.id}, -1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 transition">-</button>
+                        <span class="px-2.5 text-xs font-semibold text-slate-800">${item.quantity}</span>
+                        <button onclick="updateQuantity(${item.id}, 1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 transition">+</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Função principal: Finaliza e envia via API do WhatsApp
+        function checkoutWhatsApp() {
+            if (cart.length === 0) {
+                showToast('Seu carrinho está vazio!', 'error');
+                return;
+            }
+
+            const name = document.getElementById('client-name').value.trim();
+            const address = document.getElementById('client-address').value.trim();
+            const payment = document.getElementById('client-payment').value;
+
+            if (!name || !address) {
+                showToast('Por favor, preencha seu nome e endereço de entrega.', 'error');
+                return;
+            }
+
+            // O número do vendedor é pego do primeiro item do carrinho
+            const sellerWhatsApp = cart[0].whatsapp || '5562999999999';
+
+            // Montagem da mensagem formatada para WhatsApp
+            let text = `🛍️ *NOVO PEDIDO DE COMPRA*\n`;
+            text += `-----------------------------------\n`;
+            text += `👤 *Cliente:* ${name}\n`;
+            text += `📍 *Endereço:* ${address}\n`;
+            text += `💳 *Pagamento:* ${payment}\n`;
+            text += `-----------------------------------\n\n`;
+            text += `📦 *ITENS DO PEDIDO:*\n`;
+
+            let grandTotal = 0;
+            cart.forEach((item, index) => {
+                const subtotal = item.price * item.quantity;
+                grandTotal += subtotal;
+                text += `${index + 1}. ${item.title}\n`;
+                text += `   ${item.quantity}x R$ ${parseFloat(item.price).toFixed(2).replace('.', ',')} = *R$ ${subtotal.toFixed(2).replace('.', ',')}*\n`;
+            });
+
+            text += `\n-----------------------------------\n`;
+            text += `💰 *TOTAL DO PEDIDO: R$ ${grandTotal.toFixed(2).replace('.', ',')}*`;
+
+            // Codifica a URL para envio seguro via wa.me
+            const encodedText = encodeURIComponent(text);
+            const whatsappUrl = `https://wa.me/${sellerWhatsApp}?text=${encodedText}`;
+
+            // Abre o WhatsApp Web ou App
+            window.open(whatsappUrl, '_blank');
+
+            // Limpa o carrinho
+            cart = [];
+            saveCart();
+            updateCartUI();
+            toggleCartDrawer(false);
+            showToast('Pedido gerado! Redirecionando para o WhatsApp...');
+        }
+
+        /* ==========================================================================
+           6. INTERFACING / CONTROLADORES DE MODAL E NA VEGAÇÃO
+           ========================================================================== */
+        function switchTab(tab) {
+            const viewStore = document.getElementById('view-store');
+            const viewAdmin = document.getElementById('view-admin');
+            const btnStore = document.getElementById('btn-tab-store');
+            const btnAdmin = document.getElementById('btn-tab-admin');
+
+            if (tab === 'store') {
+                viewStore.classList.remove('hidden');
+                viewAdmin.classList.add('hidden');
+                btnStore.className = "px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200";
+                btnAdmin.className = "px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-2";
+            } else {
+                viewStore.classList.add('hidden');
+                viewAdmin.classList.remove('hidden');
+                btnAdmin.className = "px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 bg-slate-900 text-white";
+                btnStore.className = "px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-2";
+            }
+        }
+
+        function toggleCartDrawer(open) {
+            const drawer = document.getElementById('cart-drawer');
+            const backdrop = document.getElementById('cart-drawer-backdrop');
+
+            if (open) {
+                drawer.classList.remove('translate-x-full');
+                backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            } else {
+                drawer.classList.add('translate-x-full');
+                backdrop.classList.add('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        function toggleModalProduct(open) {
+            const modal = document.getElementById('modal-product');
+            if (open) {
+                document.getElementById('form-product').reset();
+                document.getElementById('product-id').value = '';
+                document.getElementById('modal-product-title').innerText = 'Cadastrar Novo Produto';
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function editProduct(id) {
+            const product = products.find(p => p.id == id);
+            if (!product) return;
+
+            document.getElementById('product-id').value = product.id;
+            document.getElementById('prod-title').value = product.title;
+            document.getElementById('prod-price').value = product.price;
+            document.getElementById('prod-whatsapp').value = product.whatsapp;
+            document.getElementById('prod-image').value = product.image_url;
+            document.getElementById('prod-desc').value = product.description || '';
+
+            document.getElementById('modal-product-title').innerText = 'Editar Produto';
+            document.getElementById('modal-product').classList.remove('hidden');
+        }
+
+        function toggleModalConfig(open) {
+            const modal = document.getElementById('modal-config');
+            if (open) {
+                document.getElementById('cfg-supabase-url').value = localStorage.getItem('cfg_supabase_url') || '';
+                document.getElementById('cfg-supabase-key').value = localStorage.getItem('cfg_supabase_key') || '';
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function saveSupabaseConfig(e) {
+            e.preventDefault();
+            const url = document.getElementById('cfg-supabase-url').value.trim();
+            const key = document.getElementById('cfg-supabase-key').value.trim();
+
+            if (url && key) {
+                localStorage.setItem('cfg_supabase_url', url);
+                localStorage.setItem('cfg_supabase_key', key);
+                showToast('Credenciais salvas! Reiniciando conexão...');
+            } else {
+                localStorage.removeItem('cfg_supabase_url');
+                localStorage.removeItem('cfg_supabase_key');
+                showToast('Voltando para o armazenamento local.');
+            }
+
+            toggleModalConfig(false);
+            initSupabase();
+            loadProducts();
+        }
+
+        function openSupabaseHelp() {
+            toggleModalConfig(true);
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const text = document.getElementById('toast-message');
+
+            text.innerText = message;
+            if (type === 'error') {
+                icon.className = "fa-solid fa-circle-exclamation text-rose-400";
+            } else {
+                icon.className = "fa-solid fa-check text-emerald-400";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
