@@ -14,11 +14,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        //Credencial do supabase-->
-        const SUPABASE_URL = 'https://oohtppdkrfcvphbotrau.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_CXV2n08-rUuvHQeWLYUXRQ_XUL7hxpn';
-        // Inicializa a conexão
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         tailwind.config = {
             theme: {
                 extend: {
@@ -375,6 +370,29 @@
         let cart = [];
         let supabaseClient = null;
 
+        // Converte os nomes das colunas do Supabase (português)
+        // para os nomes usados internamente pela interface.
+        function fromDatabase(row) {
+            return {
+                id: row.id,
+                title: row.nome,
+                price: row.preco,
+                description: row.descricao || '',
+                whatsapp: row.whatsapp || '',
+                image_url: row.imagem || ''
+            };
+        }
+
+        function toDatabase(product) {
+            return {
+                nome: product.title,
+                preco: product.price,
+                descricao: product.description,
+                whatsapp: product.whatsapp,
+                imagem: product.image_url
+            };
+        }
+
         // Produtos Iniciais Mock para Teste Acadêmico
         const initialMockProducts = [
             {
@@ -440,7 +458,7 @@
                 try {
                     const { data, error } = await supabaseClient.from('produtos').select('*').order('id', { ascending: false });
                     if (error) throw error;
-                    products = data || [];
+                    products = (data || []).map(fromDatabase);
                 } catch (err) {
                     showToast('Erro ao carregar do Supabase. Usando modo local.', 'error');
                     fetchLocalProducts();
@@ -476,10 +494,10 @@
             if (supabaseClient) {
                 try {
                     if (id) {
-                        const { error } = await supabaseClient.from('produtos').update(productData).eq('id', id);
+                        const { error } = await supabaseClient.from('produtos').update(toDatabase(productData)).eq('id', id);
                         if (error) throw error;
                     } else {
-                        const { error } = await supabaseClient.from('produtos').insert([productData]);
+                        const { error } = await supabaseClient.from('produtos').insert([toDatabase(productData)]);
                         if (error) throw error;
                     }
                     showToast('Produto salvo no Supabase com sucesso!');
