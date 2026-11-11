@@ -14,6 +14,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
+        //Credencial do supabase-->
+        const SUPABASE_URL = 'https://oohtppdkrfcvphbotrau.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_CXV2n08-rUuvHQeWLYUXRQ_XUL7hxpn';
+        // Inicializa a conexão
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         tailwind.config = {
             theme: {
                 extend: {
