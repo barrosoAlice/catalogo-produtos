@@ -524,7 +524,8 @@
             if (url && key && window.supabase) {
                 try {
                     supabaseClient = window.supabase.createClient(url, key);
-                    document.getElementById('status-banner').className = "mb-8 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-emerald-900 shadow-sm";
+                    document.getElementById('status-banner').classList.remove('bg-amber-50', 'border-amber-200', 'text-amber-900');
+                    document.getElementById('status-banner').classList.add('bg-emerald-50', 'border-emerald-200', 'text-emerald-900');
                     document.getElementById('banner-title').innerText = "Conectado ao Supabase Cloud";
                     document.getElementById('banner-desc').innerText = "Seus produtos estão sendo armazenados no banco de dados Supabase em tempo real.";
                 } catch (e) {
