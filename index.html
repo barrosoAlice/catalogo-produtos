@@ -143,6 +143,11 @@
                 </button>
                 <div id="product-detail-content"></div>
             </div>
+            <!-- OUTROS PRODUTOS CONTINUAM VISÍVEIS ABAIXO DOS DETALHES -->
+            <section class="mt-12 space-y-6" aria-label="Outros produtos do catálogo">
+                <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Conheça também outros produtos</h2>
+                <div id="related-products-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+            </section>
         </section>
 
         <!-- SEÇÃO 2: PAINEL ADMINISTRATIVO (LOJISTA) -->
@@ -835,6 +840,10 @@
                         </button>
                     </div>
                 </article>`;
+            // Reaproveita os mesmos cards do catálogo e os mostra abaixo do produto aberto.
+            renderProducts();
+            document.getElementById('related-products-grid').innerHTML =
+                document.getElementById('products-grid').innerHTML;
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
