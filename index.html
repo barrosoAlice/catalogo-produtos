@@ -368,8 +368,8 @@
         // Configuração pública do projeto Supabase (pode ficar no frontend).
         const SUPABASE_URL = 'https://oohtppdkrfcvphbotrau.supabase.co';
         const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_CXV2n08-rUuvHQeWLYUXRQ_XUL7hxpn';
-        // UUID do único usuário autorizado a administrar este catálogo.
-        const ADMIN_USER_ID = '880acbeb-a92f-4e01-9932-6f840938ee28';
+        // Qualquer usuário criado manualmente pelo administrador no Supabase Auth
+        // poderá administrar o catálogo. Não é necessário cadastrar UUID no código.
 
         // Prévia da foto escolhida pelo lojista.
         document.addEventListener('DOMContentLoaded', () => {
@@ -537,9 +537,11 @@
             }
         }
 
-        // Autenticação do painel: somente o UUID autorizado pelas políticas RLS pode administrar.
+        // Acesso do painel: qualquer usuário autenticado no Supabase pode administrar.
+        // Para manter o acesso controlado, desative o cadastro público no Supabase Auth
+        // e crie os usuários somente pelo painel do Supabase.
         function isAdmin() {
-            return !!(currentUser && currentUser.id === ADMIN_USER_ID);
+            return !!currentUser;
         }
 
         function updateAdminAccess() {
@@ -561,11 +563,6 @@
                 const { data, error } = await supabaseClient.auth.getSession();
                 if (error) throw error;
                 currentUser = data.session ? data.session.user : null;
-                if (currentUser && currentUser.id !== ADMIN_USER_ID) {
-                    await supabaseClient.auth.signOut();
-                    currentUser = null;
-                    document.getElementById('admin-login-message').textContent = 'Esta conta não tem permissão para acessar o painel.';
-                }
             } catch (error) {
                 console.error('Erro ao verificar sessão:', error);
                 currentUser = null;
@@ -573,10 +570,6 @@
             updateAdminAccess();
             supabaseClient.auth.onAuthStateChange((_event, session) => {
                 currentUser = session ? session.user : null;
-                if (currentUser && currentUser.id !== ADMIN_USER_ID) {
-                    currentUser = null;
-                    supabaseClient.auth.signOut();
-                }
                 updateAdminAccess();
             });
         }
@@ -597,10 +590,8 @@
                 const password = document.getElementById('admin-password').value;
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) throw error;
-                if (!data.user || data.user.id !== ADMIN_USER_ID) {
-                    await supabaseClient.auth.signOut();
-                    currentUser = null;
-                    throw new Error('Este e-mail não é o proprietário autorizado do catálogo.');
+                if (!data.user) {
+                    throw new Error('Não foi possível identificar a conta autenticada.');
                 }
                 currentUser = data.user;
                 document.getElementById('admin-password').value = '';
